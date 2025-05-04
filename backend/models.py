@@ -16,6 +16,7 @@ class Task(SQLModel, table=True):
     description: str = ""
     status: str = "未着手"
     deadline: Optional[str] = None
+    priority: Optional[str] = "中"
     owner_id: str = Field(foreign_key="user.id")
 
 class TaskUpdate(SQLModel):
@@ -23,3 +24,4 @@ class TaskUpdate(SQLModel):
     description: Optional[str]
     status: Optional[str]
     deadline: Optional[str]
+    priority: Optional[str] = None

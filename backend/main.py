@@ -92,6 +92,8 @@ def update_task(task_id: str, updated: TaskUpdate, current_user: User = Depends(
         task.status = updated.status
     if updated.deadline is not None:
         task.deadline = updated.deadline
+    if updated.priority is not None:
+        task.priority = updated.priority
 
     session.add(task)
     session.commit()

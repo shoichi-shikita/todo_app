@@ -1,14 +1,22 @@
+from email import message
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlmodel import Session, select
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import User, Task, TaskUpdate  # ← 追加！
 from database import init_db, get_session
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from typing import List
+from typing import List, Any
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import openai
+import os
+from ai_utils import parse_natural_task
+# from ai_utils import classify_priority
+from ai_utils import suggest_schedule
 
 app = FastAPI()
 init_db()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -19,6 +27,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class NaturalTask(BaseModel):
+    message: str
+
+class ParsedTask(BaseModel):
+    title: str
+    deadline: str
+    priority: str
 
 # curl -X PUT "http://127.0.0.1:8000/tasks/d88438d3-94ff-4dc3-b0e1-4491ba4f1753" ^
 #   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJUZXN0IiwiZXhwIjoxNzQ2MzYyOTMwfQ.zkIyOC6X7UJbnqtGRoWFYBOr_NQho2AjBQCv9UTBbAY" ^
@@ -109,3 +125,28 @@ def delete_task(task_id: str, current_user: User = Depends(get_current_user), se
     session.delete(task)
     session.commit()
     return {"detail": "Task deleted"}
+
+@app.post("/parse_task", response_model=ParsedTask)
+async def parse_task(task: NaturalTask):
+    try:
+        parsed = parse_natural_task(task.message)
+        return parsed
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# @app.post("/classify_priority")
+# async def classify_priority_endpoint(task: NaturalTask):
+#     try:
+#         priority = classify_priority(task.message)
+#         return {"priority": priority}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/suggest_schedule")
+async def suggest_schedule_api(tasks: List[dict], current_user: User = Depends(get_current_user)):
+    try:
+        suggestions = suggest_schedule(tasks)
+        return suggestions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

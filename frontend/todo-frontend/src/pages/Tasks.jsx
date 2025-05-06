@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { parseNaturalTodo, suggestSchedule } from "../api/ai";
 
 function Tasks() {
     const [todos, setTodos] = useState([]);
+    const [nlText, setNlText] = useState("");
     const [newTodo, setNewTodo] = useState({
         title: "",
         status: "未着手",
@@ -98,6 +100,37 @@ function Tasks() {
             setEditingId(null);
         } else {
             alert("編集に失敗しました");
+        }
+    };
+
+    // 自然言語からToDo追加
+    const handleNaturalInput = async () => {
+        try {
+            const parsed = await parseNaturalTodo(nlText);
+            const res = await fetch("http://127.0.0.1:8000/tasks", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+                body: JSON.stringify(parsed),
+            });
+            if (res.ok) {
+                const created = await res.json();
+                setTodos([...todos, created]);
+                setNlText("");
+            }
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+    // スケジュール提案
+    const handleSuggest = async () => {
+        try {
+            const suggestions = await suggestSchedule(todos, localStorage.getItem("token"));
+            alert("👀 今日やるべきタスク:\n" + suggestions.map(d => `・${d.title}（理由: ${d.reason}）`).join("\n"));
+        } catch (err) {
+            alert(err.message);
         }
     };
 
@@ -232,6 +265,22 @@ function Tasks() {
             >
                 ログアウト
             </button>
+
+            <div className="mt-6 space-y-2">
+                <input
+                    type="text"
+                    placeholder="例: 明日の10時に歯医者"
+                    value={nlText}
+                    onChange={(e) => setNlText(e.target.value)}
+                    className="w-full p-2 border rounded"
+                />
+                <button
+                    onClick={handleNaturalInput}
+                    className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
+                >
+                    🧠 自然言語からToDo追加
+                </button>
+            </div>
         </div>
     );
 }

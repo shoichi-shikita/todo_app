@@ -2,10 +2,11 @@ import openai
 import os
 import json
 from dotenv import load_dotenv
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import re
 
 load_dotenv()
+
 
 # OpenRouter設定
 openai.api_key = os.getenv("OPENROUTER_API_KEY")
@@ -36,9 +37,9 @@ def parse_natural_task(message: str) -> dict:
 
 出力形式（JSON）:
 {{
-  "title": "〇〇",
-  "deadline": "2025-05-07",
-  "priority": "高"
+    "title": "〇〇",
+    "deadline": "2025-05-07",
+    "priority": "高"
 }}
 """
 
@@ -55,7 +56,7 @@ def parse_natural_task(message: str) -> dict:
         json_text = extract_json(raw_result)
         parsed = json.loads(json_text)
 
-        # 締切補完
+        # ✅ 締切補完処理（自然言語→日付）
         deadline = parsed.get("deadline", "")
         if "今日" in deadline or "YYYY-MM-DD" in deadline:
             parsed["deadline"] = str(date.today())
@@ -64,12 +65,23 @@ def parse_natural_task(message: str) -> dict:
         elif "2日後" in deadline:
             parsed["deadline"] = str(date.today() + timedelta(days=2))
 
+        # ✅ 年が過去（例：2022年など）なら補正
+        try:
+            deadline_date = datetime.strptime(parsed["deadline"], "%Y-%m-%d").date()
+            if deadline_date < date.today():
+                print(f"⚠ 過去日 ({deadline_date}) が指定されたため明日に補正")
+                parsed["deadline"] = str(date.today() + timedelta(days=1))
+        except Exception as e:
+            print("⚠ 日付形式が不正なため、今日に補正")
+            parsed["deadline"] = str(date.today())
+
         return parsed
 
     except Exception as e:
         import traceback
         print("🛑 OpenRouter API Error:\n", traceback.format_exc())
         raise Exception("parse_natural_task failed")
+
 
 
 def suggest_schedule(tasks: list) -> list:
@@ -84,12 +96,12 @@ def suggest_schedule(tasks: list) -> list:
 
 出力形式（JSON）:
 [
-  {{
+    {{
     "title": "〜",
     "deadline": "〜",
     "priority": "〜",
     "reason": "〜"
-  }}
+    }}
 ]
 
 タスク一覧:
